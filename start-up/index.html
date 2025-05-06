@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Refresh - Artisanal Drinks</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        }
+        .product-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+        .cart-item-enter {
+            opacity: 0;
+            transform: translateX(20px);
+        }
+        .cart-item-enter-active {
+            opacity: 1;
+            transform: translateX(0);
+            transition: all 300ms ease-in;
+        }
+        .cart-item-exit {
+            opacity: 1;
+            transform: translateX(0);
+        }
+        .cart-item-exit-active {
+            opacity: 0;
+            transform: translateX(20px);
+            transition: all 300ms ease-in;
+        }
+    </style> -->
+</head>
+
+<body class="font-sans antialiased">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useReducer } = React;
+
+        // API Configuration
+        const API_BASE_URL = 'https://api.refreshdrinks.com';
+
+        // Sample product data (would normally come from API)
+        const initialProducts = [
+            {
+                id: 1,
+                name: "Tropical Bliss",
+                description: "A refreshing blend of pineapple, mango, and coconut water",
+                price: 4.99,
+                image: "https://images.unsplash.com/photo-1551024506-0bccd828d307?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=800&q=80",
+                category: "juice",
+                stock: 50
+            },
+            {
+                id: 2,
+                name: "Berry Burst",
+                description: "Antioxidant-rich mix of blueberries, strawberries and acai",
+                price: 5.49,
+                image: "https://images.unsplash.com/photo-1550258987-190a2d41a8ba?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=800&q=80",
+                category: "juice",
+                stock: 35
+            },
+            {
+                id: 3,
+                name: "Green Detox",
+                description: "Kale, spinach, apple and lemon for a healthy boost",
+                price: 4.79,
+                image: "https://plus.unsplash.com/premium_photo-1675011652880-9e2289532ecd?q=80&w=1887&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+                category: "juice",
+                stock: 42
+            },
+            {
+                id: 4,
+                name: "Cold Brew Coffee",
+                description: "Smooth, low-acid cold brew with notes of chocolate",
+                price: 3.99,
+                image: "https://images.unsplash.com/photo-1558122104-355edad709f6?q=80&w=1964&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+                category: "coffee",
+                stock: 28
+            },
+            {
+                id: 5,
+                name: "Matcha Latte",
+                description: "Premium ceremonial grade matcha with oat milk",
+                price: 5.29,
+                image: "https://images.unsplash.com/photo-1544787219-7f47ccb76574?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=800&q=80",
+                category: "tea",
+                stock: 31
+            },
+            {
+                id: 6,
+                name: "Sparkling Citrus",
+                description: "Lightly carbonated lemon, lime and grapefruit blend",
+                price: 3.49,
+                image: "https://images.unsplash.com/photo-1550583724-b2692b85b150?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=800&q=80",
+                category: "sparkling",
+                stock: 56
+            }
+        ];
+
+        // Cart reducer
+        const cartReducer = (state, action) => {
+            switch (action.type) {
+                case 'ADD_ITEM':
+                    const existingItem = state.find(item => item.id === action.payload.id);
+                    if (existingItem) {
+                        return state.map(item =>
+                            item.id === action.payload.id
+                                ? { ...item, quantity: item.quantity + 1 }
+                                : item
+                        );
+                    }
+                    return [...state, { ...action.payload, quantity: 1 }];
+                case 'REMOVE_ITEM':
+                    return state.filter(item => item.id !== action.payload);
+                case 'UPDATE_QUANTITY':
+                    return state.map(item =>
+                        item.id === action.payload.id
+                            ? { ...item, quantity: action.payload.quantity }
+                            : item
+                    );
+                case 'CLEAR_CART':
+                    return [];
+                default:
+                    return state;
+            }
+        };
+
+        // Main App Component
+        function App() {
+            const [products, setProducts] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [error, setError] = useState(null);
+            const [cart, dispatch] = useReducer(cartReducer, []);
+            const [isCartOpen, setIsCartOpen] = useState(false);
+            const [activeCategory, setActiveCategory] = useState('all');
+            const [searchTerm, setSearchTerm] = useState('');
+
+            // Simulate API fetch
+            useEffect(() => {
+                const fetchProducts = async () => {
+                    try {
+                        // In a real app, this would be:
+                        // const response = await fetch(`${API_BASE_URL}/api/products`);
+                        // const data = await response.json();
+                        // setProducts(data);
+
+                        // For demo purposes, using the initialProducts
+                        setProducts(initialProducts);
+                        setLoading(false);
+                    } catch (err) {
+                        setError(err.message);
+                        setLoading(false);
+                    }
+                };
+
+                fetchProducts();
+            }, []);
+
+            // Filter products by category and search term
+            const filteredProducts = products.filter(product => {
+                const matchesCategory = activeCategory === 'all' || product.category === activeCategory;
+                const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    product.description.toLowerCase().includes(searchTerm.toLowerCase());
+                return matchesCategory && matchesSearch;
+            });
+
+            // Calculate cart total
+            const cartTotal = cart.reduce((total, item) => total + (item.price * item.quantity), 0);
+
+            // Add to cart function
+            const addToCart = (product) => {
+                dispatch({ type: 'ADD_ITEM', payload: product });
+            };
+
+            // Remove from cart function
+            const removeFromCart = (productId) => {
+                dispatch({ type: 'REMOVE_ITEM', payload: productId });
+            };
+
+            // Update quantity function
+            const updateQuantity = (productId, quantity) => {
+                if (quantity < 1) return;
+                dispatch({ type: 'UPDATE_QUANTITY', payload: { id: productId, quantity } });
+            };
+
+            // Clear cart function
+            const clearCart = () => {
+                dispatch({ type: 'CLEAR_CART' });
+            };
+
+            // Checkout function (would call API in real app)
+            const handleCheckout = async () => {
+                try {
+                    // In a real app, this would be:
+                    // const response = await fetch(`${API_BASE_URL}/api/orders`, {
+                    //     method: 'POST',
+                    //     headers: {
+                    //         'Content-Type': 'application/json',
+                    //     },
+                    //     body: JSON.stringify({
+                    //         items: cart,
+                    //         total: cartTotal
+                    //     })
+                    // });
+                    // const data = await response.json();
+                    // if (response.ok) {
+                    //     clearCart();
+                    //     alert('Order placed successfully!');
+                    // } else {
+                    //     throw new Error(data.message || 'Checkout failed');
+                    // }
+
+                    // For demo purposes
+                    alert(`Order placed! Total: $${cartTotal.toFixed(2)}`);
+                    clearCart();
+                    setIsCartOpen(false);
+                } catch (err) {
+                    alert(`Checkout error: ${err.message}`);
+                }
+            };
+
+            if (loading) return <LoadingSpinner />;
+            if (error) return <ErrorDisplay message={error} />;
+
+            return (
+                <div className="min-h-screen flex flex-col">
+                    {/* Navigation */}
+                    <nav className="bg-white shadow-lg">
+                        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                            <div className="flex justify-between h-16">
+                                <div className="flex items-center">
+                                    <div className="flex-shrink-0 flex items-center">
+                                        <i className="fas fa-glass-whiskey text-green-500 text-2xl mr-2"></i>
+                                        <span className="text-xl font-bold text-gray-900">Refresh</span>
+                                    </div>
+                                    <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
+                                        <a href="#" className="border-green-500 text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                                            Home
+                                        </a>
+                                        <a href="#" className="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                                            About
+                                        </a>
+                                        <a href="#" className="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                                            Contact
+                                        </a>
+                                    </div>
+                                </div>
+                                <div className="hidden sm:ml-6 sm:flex sm:items-center">
+                                    <button
+                                        onClick={() => setIsCartOpen(true)}
+                                        className="relative p-1 text-gray-400 hover:text-gray-500 focus:outline-none"
+                                    >
+                                        <i className="fas fa-shopping-cart text-xl"></i>
+                                        {cart.length > 0 && (
+                                            <span className="absolute -top-1 -right-1 bg-green-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+                                                {cart.reduce((total, item) => total + item.quantity, 0)}
+                                            </span>
+                                        )}
+                                    </button>
+                                </div>
+                                <div className="-mr-2 flex items-center sm:hidden">
+                                    <button
+                                        type="button"
+                                        className="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none"
+                                    >
+                                        <i className="fas fa-bars"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </nav>
+
+                    {/* Hero Section */}
+                    <div className="gradient-bg">
+                        <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8 lg:py-24">
+                            <div className="text-center">
+                                <h1 className="text-4xl font-extrabold tracking-tight text-gray-900 sm:text-5xl md:text-6xl">
+                                    <span className="block">Artisanal Drinks</span>
+                                    <span className="block text-green-500">Crafted with Care</span>
+                                </h1>
+                                <p className="mt-3 max-w-md mx-auto text-base text-gray-500 sm:text-lg md:mt-5 md:text-xl md:max-w-3xl">
+                                    Discover our handcrafted beverages made with the finest ingredients and sustainable practices.
+                                </p>
+                                <div className="mt-5 max-w-md mx-auto sm:flex sm:justify-center md:mt-8">
+                                    <div className="rounded-md shadow">
+                                        <a href="#products" className="w-full flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-white bg-green-600 hover:bg-green-700 md:py-4 md:text-lg md:px-10">
+                                            Shop Now
+                                        </a>
+                                    </div>
+                                    <div className="mt-3 rounded-md shadow sm:mt-0 sm:ml-3">
+                                        <a href="#" className="w-full flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-green-600 bg-white hover:bg-gray-50 md:py-4 md:text-lg md:px-10">
+                                            Learn More
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Main Content */}
+                    <main className="flex-grow">
+                        {/* Product Filter/Search */}
+                        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                            <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
+                                <h2 id="products" className="text-2xl font-bold text-gray-900 mb-4 md:mb-0">Our Products</h2>
+                                <div className="flex flex-col space-y-4 sm:space-y-0 sm:flex-row sm:space-x-4">
+                                    <div className="relative">
+                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <i className="fas fa-search text-gray-400"></i>
+                                        </div>
+                                        <input
+                                            type="text"
+                                            placeholder="Search drinks..."
+                                            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                                            value={searchTerm}
+                                            onChange={(e) => setSearchTerm(e.target.value)}
+                                        />
+                                    </div>
+                                    <select
+                                        className="block w-full pl-3 pr-10 py-2 text-base border border-gray-300 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm rounded-md"
+                                        value={activeCategory}
+                                        onChange={(e) => setActiveCategory(e.target.value)}
+                                    >
+                                        <option value="all">All Categories</option>
+                                        <option value="juice">Juices</option>
+                                        <option value="coffee">Coffee</option>
+                                        <option value="tea">Tea</option>
+                                        <option value="sparkling">Sparkling</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* Product Grid */}
+                            {filteredProducts.length === 0 ? (
+                                <div className="text-center py-12">
+                                    <i className="fas fa-search text-4xl text-gray-400 mb-4"></i>
+                                    <h3 className="text-lg font-medium text-gray-900">No products found</h3>
+                                    <p className="mt-1 text-sm text-gray-500">Try adjusting your search or filter to find what you're looking for.</p>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 gap-y-10 gap-x-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 xl:gap-x-8">
+                                    {filteredProducts.map((product) => (
+                                        <ProductCard
+                                            key={product.id}
+                                            product={product}
+                                            onAddToCart={addToCart}
+                                        />
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </main>
+
+                    {/* Footer */}
+                    <footer className="bg-gray-800">
+                        <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+                                <div>
+                                    <h3 className="text-sm font-semibold text-gray-400 tracking-wider uppercase">Shop</h3>
+                                    <ul className="mt-4 space-y-4">
+                                        <li><a href="#" className="text-base text-gray-300 hover:text-white">All Products</a></li>
+                                        <li><a href="#" className="text-base text-gray-300 hover:text-white">New Arrivals</a></li>
+                                        <li><a href="#" className="text-base text-gray-300 hover:text-white">Best Sellers</a></li>
+                                    </ul>
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-semibold text-gray-400 tracking-wider uppercase">Company</h3>
+                                    <ul className="mt-4 space-y-4">
+                                        <li><a href="#" className="text-base text-gray-300 hover:text-white">About Us</a></li>
+                                        <li><a href="#" className="text-base text-gray-300 hover:text-white">Sustainability</a></li>
+                                        <li><a href="#" className="text-base text-gray-300 hover:text-white">Careers</a></li>
+                                    </ul>
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-semibold text-gray-400 tracking-wider uppercase">Support</h3>
+                                    <ul className="mt-4 space-y-4">
+                                        <li><a href="#" className="text-base text-gray-300 hover:text-white">Contact</a></li>
+                                        <li><a href="#" className="text-base text-gray-300 hover:text-white">FAQs</a></li>
+                                        <li><a href="#" className="text-base text-gray-300 hover:text-white">Shipping</a></li>
+                                    </ul>
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-semibold text-gray-400 tracking-wider uppercase">Connect</h3>
+                                    <div className="mt-4 flex space-x-6">
+                                        <a href="#" className="text-gray-400 hover:text-white">
+                                            <i className="fab fa-facebook-f"></i>
+                                        </a>
+                                        <a href="#" className="text-gray-400 hover:text-white">
+                                            <i className="fab fa-instagram"></i>
+                                        </a>
+                                        <a href="#" className="text-gray-400 hover:text-white">
+                                            <i className="fab fa-twitter"></i>
+                                        </a>
+                                    </div>
+                                    <div className="mt-6">
+                                        <p className="text-gray-300 text-sm">Subscribe to our newsletter</p>
+                                        <div className="mt-2 flex">
+                                            <input
+                                                type="email"
+                                                placeholder="Your email"
+                                                className="px-4 py-2 rounded-l-md w-full focus:outline-none focus:ring-2 focus:ring-green-500"
+                                            />
+                                            <button className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-r-md">
+                                                <i className="fas fa-paper-plane"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="mt-8 border-t border-gray-700 pt-8 flex flex-col md:flex-row justify-between">
+                                <p className="text-gray-400 text-sm">&copy; 2023 Refresh Drinks. All rights reserved.</p>
+                                <div className="mt-4 md:mt-0 flex space-x-6">
+                                    <a href="#" className="text-gray-400 hover:text-white text-sm">Privacy Policy</a>
+                                    <a href="#" className="text-gray-400 hover:text-white text-sm">Terms of Service</a>
+                                </div>
+                            </div>
+                        </div>
+                    </footer>
+
+                    {/* Shopping Cart Sidebar */}
+                    {isCartOpen && (
+                        <div className="fixed inset-0 overflow-hidden z-50">
+                            <div className="absolute inset-0 overflow-hidden">
+                                <div
+                                    className="absolute inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
+                                    onClick={() => setIsCartOpen(false)}
+                                ></div>
+                                <div className="fixed inset-y-0 right-0 pl-10 max-w-full flex">
+                                    <div className="w-screen max-w-md">
+                                        <div className="h-full flex flex-col bg-white shadow-xl overflow-y-scroll">
+                                            <div className="flex-1 py-6 overflow-y-auto px-4 sm:px-6">
+                                                <div className="flex items-start justify-between">
+                                                    <h2 className="text-lg font-medium text-gray-900">Shopping cart</h2>
+                                                    <div className="ml-3 h-7 flex items-center">
+                                                        <button
+                                                            type="button"
+                                                            className="-m-2 p-2 text-gray-400 hover:text-gray-500"
+                                                            onClick={() => setIsCartOpen(false)}
+                                                        >
+                                                            <span className="sr-only">Close panel</span>
+                                                            <i className="fas fa-times"></i>
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                <div className="mt-8">
+                                                    {cart.length === 0 ? (
+                                                        <div className="text-center py-12">
+                                                            <i className="fas fa-shopping-cart text-4xl text-gray-400 mb-4"></i>
+                                                            <h3 className="text-lg font-medium text-gray-900">Your cart is empty</h3>
+                                                            <p className="mt-1 text-sm text-gray-500">Start adding some delicious drinks!</p>
+                                                            <button
+                                                                type="button"
+                                                                className="mt-6 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                                                                onClick={() => setIsCartOpen(false)}
+                                                            >
+                                                                Continue Shopping
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flow-root">
+                                                            <ul className="-my-6 divide-y divide-gray-200">
+                                                                {cart.map((item) => (
+                                                                    <CartItem
+                                                                        key={item.id}
+                                                                        item={item}
+                                                                        onRemove={removeFromCart}
+                                                                        onUpdateQuantity={updateQuantity}
+                                                                    />
+                                                                ))}
+                                                            </ul>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {cart.length > 0 && (
+                                                <div className="border-t border-gray-200 py-6 px-4 sm:px-6">
+                                                    <div className="flex justify-between text-base font-medium text-gray-900">
+                                                        <p>Subtotal</p>
+                                                        <p>${cartTotal.toFixed(2)}</p>
+                                                    </div>
+                                                    <p className="mt-0.5 text-sm text-gray-500">Shipping and taxes calculated at checkout.</p>
+                                                    <div className="mt-6">
+                                                        <button
+                                                            onClick={handleCheckout}
+                                                            className="flex justify-center items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-green-600 hover:bg-green-700 w-full"
+                                                        >
+                                                            Checkout
+                                                        </button>
+                                                    </div>
+                                                    <div className="mt-6 flex justify-center text-sm text-center text-gray-500">
+                                                        <p>
+                                                            or{' '}
+                                                            <button
+                                                                type="button"
+                                                                className="text-green-600 font-medium hover:text-green-500"
+                                                                onClick={() => setIsCartOpen(false)}
+                                                            >
+                                                                Continue Shopping<span aria-hidden="true"> &rarr;</span>
+                                                            </button>
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Mobile Cart Button */}
+                    <div className="sm:hidden fixed bottom-6 right-6 z-40">
+                        <button
+                            onClick={() => setIsCartOpen(true)}
+                            className="p-4 bg-green-600 text-white rounded-full shadow-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+                        >
+                            <i className="fas fa-shopping-cart text-xl"></i>
+                            {cart.length > 0 && (
+                                <span className="absolute -top-1 -right-1 bg-white text-green-600 text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+                                    {cart.reduce((total, item) => total + item.quantity, 0)}
+                                </span>
+                            )}
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+
+        // Product Card Component
+        function ProductCard({ product, onAddToCart }) {
+            return (
+                <div className="product-card group transition duration-300 ease-in-out">
+                    <div className="w-full aspect-w-1 aspect-h-1 bg-gray-200 rounded-lg overflow-hidden xl:aspect-w-7 xl:aspect-h-8">
+                        <img
+                            src={product.image}
+                            alt={product.name}
+                            className="w-full h-full object-cover object-center group-hover:opacity-75"
+                        />
+                    </div>
+                    <div className="mt-4 flex justify-between">
+                        <div>
+                            <h3 className="text-sm text-gray-700 font-medium">{product.name}</h3>
+                            <p className="mt-1 text-sm text-gray-500">{product.description}</p>
+                        </div>
+                        <p className="text-sm font-medium text-gray-900">${product.price.toFixed(2)}</p>
+                    </div>
+                    <div className="mt-4">
+                        <button
+                            onClick={() => onAddToCart(product)}
+                            className="w-full flex items-center justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                        >
+                            Add to cart
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+
+        // Cart Item Component
+        function CartItem({ item, onRemove, onUpdateQuantity }) {
+            return (
+                <li className="py-6 flex">
+                    <div className="flex-shrink-0 w-24 h-24 border border-gray-200 rounded-md overflow-hidden">
+                        <img
+                            src={item.image}
+                            alt={item.name}
+                            className="w-full h-full object-center object-cover"
+                        />
+                    </div>
+                    <div className="ml-4 flex-1 flex flex-col">
+                        <div>
+                            <div className="flex justify-between text-base font-medium text-gray-900">
+                                <h3>{item.name}</h3>
+                                <p className="ml-4">${(item.price * item.quantity).toFixed(2)}</p>
+                            </div>
+                            <p className="mt-1 text-sm text-gray-500">{item.category}</p>
+                        </div>
+                        <div className="flex-1 flex items-end justify-between text-sm">
+                            <div className="flex items-center">
+                                <button
+                                    onClick={() => onUpdateQuantity(item.id, item.quantity - 1)}
+                                    className="text-gray-500 hover:text-gray-700 px-2 py-1"
+                                >
+                                    <i className="fas fa-minus"></i>
+                                </button>
+                                <span className="mx-2 text-gray-700">{item.quantity}</span>
+                                <button
+                                    onClick={() => onUpdateQuantity(item.id, item.quantity + 1)}
+                                    className="text-gray-500 hover:text-gray-700 px-2 py-1"
+                                >
+                                    <i className="fas fa-plus"></i>
+                                </button>
+                            </div>
+                            <div className="flex">
+                                <button
+                                    type="button"
+                                    className="font-medium text-green-600 hover:text-green-500"
+                                    onClick={() => onRemove(item.id)}
+                                >
+                                    Remove
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </li>
+            );
+        }
+
+        // Loading Spinner Component
+        function LoadingSpinner() {
+            return (
+                <div className="min-h-screen flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-green-500"></div>
+                </div>
+            );
+        }
+
+        // Error Display Component
+        function ErrorDisplay({ message }) {
+            return (
+                <div className="min-h-screen flex items-center justify-center">
+                    <div className="bg-red-50 border-l-4 border-red-500 p-4 max-w-md">
+                        <div className="flex">
+                            <div className="flex-shrink-0">
+                                <i className="fas fa-exclamation-circle text-red-500"></i>
+                            </div>
+                            <div className="ml-3">
+                                <p className="text-sm text-red-700">
+                                    Error loading products: {message}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Render the app
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+
+</html>
